@@ -1,0 +1,5 @@
+.idea
+testDatabase
+target
+project/target
+derby.log
