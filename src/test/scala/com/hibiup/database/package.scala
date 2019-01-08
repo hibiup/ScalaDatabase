@@ -7,9 +7,15 @@ import java.util.Scanner
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.dbcp2.BasicDataSource
 import org.scalatest.{BeforeAndAfter, FlatSpec}
+import org.slf4j.LoggerFactory
 
 package object database {
-    lazy val config = ConfigFactory.parseResources("config.conf");
+    private val logger = LoggerFactory.getLogger(this.getClass)
+
+    import scala.concurrent.ExecutionContext.global
+    implicit val ec = global
+
+    lazy val config = ConfigFactory.parseResources("application.conf");
 
     lazy val dataSource = {
         val conf = config.getConfig("database.connection")
@@ -29,7 +35,7 @@ package object database {
 
     def withResource[T <: {def close()}, V](r: T)(f: T => V): V = {
         try {
-            println(s"With resource ${r}")
+            logger.info(s"With resource ${r}")
             f(r)
         }
         catch {
@@ -37,7 +43,7 @@ package object database {
                 throw t
         } finally {
             r.close()
-            println(s"Resource ${r} is closed")
+            logger.info(s"Resource ${r} is closed")
         }
     }
 
@@ -48,12 +54,12 @@ package object database {
         catch {
             case t:Throwable =>
                 tr.rollback()
-                println("Transaction is rollback")
+                logger.info("Transaction is rollback")
                 throw t
         }
         finally {
             tr.commit()
-            println("Transaction is committed")
+            logger.info("Transaction is committed")
         }
     }
 

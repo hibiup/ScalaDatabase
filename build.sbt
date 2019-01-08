@@ -1,13 +1,20 @@
-name := "ScalaDatabase"
-
-version := "0.1"
-
 scalaVersion := "2.12.8"
 
-libraryDependencies ++= Seq(
-    "org.scalatest" %% "scalatest" % "3.0.5" % Test,
-    "org.apache.derby" % "derby" % "10.14.2.0",
-    "org.apache.derby" % "derbyclient" % "10.14.2.0",
-    "com.typesafe" % "config" % "1.3.3",
-    "org.apache.commons" % "commons-dbcp2" % "2.5.0"
+val derbyVersion = "10.14.2.0"
+val slickVersion = "3.2.3"
+
+lazy val ScalaDatabase = (project in file(".")).settings(
+    name := "ScalaDatabase",
+    version := "0.1",
+    libraryDependencies ++= Seq(
+        "org.scalatest" %% "scalatest" % "3.0.5" % Test,
+        "com.typesafe" % "config" % "1.3.3",
+        "org.apache.commons" % "commons-dbcp2" % "2.5.0",
+        "org.apache.derby" % "derby" % derbyVersion,
+        "org.apache.derby" % "derbyclient" % derbyVersion,
+        // Slick
+        "com.typesafe.slick" %% "slick" % slickVersion,
+        "com.typesafe.slick" %% "slick-hikaricp" % slickVersion,
+        "ch.qos.logback" % "logback-classic" % "1.2.3"
+    )
 )
