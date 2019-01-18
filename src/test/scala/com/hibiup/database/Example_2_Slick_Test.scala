@@ -41,7 +41,7 @@ object Example_2_Slick_Test{
         def last_name = column[Option[String]]("LAST_NAME")
         // * 代表结果集字段,所有的 Table 类都需要定义一个 * 来映射字段
         def * = (id, account_id, first_name, last_name) <> (User.tupled, User.unapply)
-        /** 外键 */
+        /** 3-1）定义外键，需要用到对应表的模板 */
         def account = foreignKey("ACCOUNT_FK", account_id, accounts)(_.id)
     }
     val users = TableQuery[Users]
@@ -59,15 +59,15 @@ class Example_2_Slick_Test extends Init{
           * */
         withResource(Database.forConfig("database.connection")){ conn =>
             /*************************************
-              * 5) 插入指令
+              * 5) 插入
               *
               * 定义 INSERT 的数据集
               * */
             val hashed: String = BCrypt.hashpw("P@55W0rd", BCrypt.gensalt)
             val add_account = DBIO.seq(
-                /** Account 的第一个参数只给 0，因为是自增长 ID */
-                accounts += Account(0, "username2", Option(hashed), new java.sql.Timestamp(new Date().getTime())),
-                accounts += Account(0, "username3", None, new java.sql.Timestamp(new Date().getTime()) )
+                /** Account 的第一个参数只给 0，因为是自增长 ID。 Timestamp 设为 null，会取得缺省值。*/
+                accounts += Account(0, "username2", Option(hashed), null),
+                accounts += Account(0, "username3", None, null )
             )
 
             /** 5-2) 执行由 users 导出的序列集的默认行为是 INSERT */
@@ -81,12 +81,12 @@ class Example_2_Slick_Test extends Init{
             fetchUser.recover{
                 case t => logger.error(t.getMessage, t)
             }
-
+            /** 等待查询结果 */
             Await.result(fetchUser, timeout.value)
 
 
             /***********************************
-              * 6) 查询指令
+              * 6) 查询
               *
               * 6-1) filter 相当于定义 Where, 返回 WrappingQuery
               * */
