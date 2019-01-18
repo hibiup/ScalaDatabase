@@ -10,7 +10,7 @@ import slick.lifted.Tag
 import scala.concurrent.Await
 
 // Derby database JDBC Driver
-import slick.jdbc.DerbyProfile.api._
+import slick.jdbc.H2Profile.api._
 
 object Example_2_Slick_Test{
     private val logger = LoggerFactory.getLogger(this.getClass)
@@ -20,7 +20,7 @@ object Example_2_Slick_Test{
 
     /** 2）生成相应的表结构描述 */
     final class Users(tag: Tag) extends Table[User](tag, "users") {
-        def id = column[Long]("ID", O.PrimaryKey) // This is the primary key column
+        def id = column[Long]("id", O.PrimaryKey) // This is the primary key column
         def email = column[String]("email")
         def password = column[Option[String]]("password")
         def lasttime = column[Timestamp]("lasttime",O.Default(new java.sql.Timestamp(new Date().getTime())))

@@ -9,9 +9,9 @@ lazy val ScalaDatabase = (project in file(".")).settings(
     libraryDependencies ++= Seq(
         "org.scalatest" %% "scalatest" % "3.0.5" % Test,
         "com.typesafe" % "config" % "1.3.3",
+        // Database
         "org.apache.commons" % "commons-dbcp2" % "2.5.0",
-        "org.apache.derby" % "derby" % derbyVersion,
-        "org.apache.derby" % "derbyclient" % derbyVersion,
+        "com.h2database" % "h2" % "1.4.197",
         // Slick
         "com.typesafe.slick" %% "slick" % slickVersion,
         "com.typesafe.slick" %% "slick-hikaricp" % slickVersion,
