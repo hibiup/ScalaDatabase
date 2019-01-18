@@ -3,6 +3,7 @@ package com.hibiup.database
 import java.sql.Timestamp
 import java.util.Date
 
+import org.mindrot.jbcrypt.BCrypt
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.slf4j.LoggerFactory
 import slick.lifted.Tag
@@ -21,7 +22,7 @@ object Example_2_Slick_Test{
 
     /** 2）生成相应的表结构描述 */
     final class Accounts(tag: Tag) extends Table[Account](tag, "ACCOUNTS") {
-        def id = column[Long]("ID", O.PrimaryKey) // This is the primary key column
+        def id = column[Long]("ID", O.PrimaryKey, O.AutoInc) // This is the primary key column
         def email = column[String]("EMAIL")
         def password = column[Option[String]]("PASSWORD")
         def lasttime = column[Timestamp]("LAST_TIME",O.Default(new java.sql.Timestamp(new Date().getTime())))
@@ -34,13 +35,14 @@ object Example_2_Slick_Test{
     val accounts = TableQuery[Accounts]
 
     final class Users(tag: Tag) extends Table[User](tag, "USERS") {
-        def id = column[Long]("ID", O.PrimaryKey) // This is the primary key column
+        def id = column[Long]("ID", O.PrimaryKey, O.AutoInc) // This is the primary key column
         def account_id = column[Long]("ACCOUNT_ID")
         def first_name = column[Option[String]]("FIRST_NAME")
         def last_name = column[Option[String]]("LAST_NAME")
         // * 代表结果集字段,所有的 Table 类都需要定义一个 * 来映射字段
         def * = (id, account_id, first_name, last_name) <> (User.tupled, User.unapply)
-        def account = foreignKey("SUP_FK", account_id, accounts)(_.id)
+        /** 外键 */
+        def account = foreignKey("ACCOUNT_FK", account_id, accounts)(_.id)
     }
     val users = TableQuery[Users]
 }
@@ -52,17 +54,20 @@ class Example_2_Slick_Test extends Init{
     val timeout = Timeout(10 seconds)
 
     "Slick" should "" in {
-        /** 4）用 Slick 提供的 jdbc Database object 来连接数据库. 参数是 Scala 的 Config */
+        /**
+          * 4）用 Slick 提供的 jdbc Database object 来连接数据库. 参数是 Scala 的 Config
+          * */
         withResource(Database.forConfig("database.connection")){ conn =>
-
             /*************************************
               * 5) 插入指令
               *
               * 定义 INSERT 的数据集
               * */
+            val hashed: String = BCrypt.hashpw("P@55W0rd", BCrypt.gensalt)
             val add_account = DBIO.seq(
-                accounts += Account(101, "username2", Option("P@55W0rd"), new java.sql.Timestamp(new Date().getTime())),
-                accounts += Account(102, "username3", None, new java.sql.Timestamp(new Date().getTime()) )
+                /** Account 的第一个参数只给 0，因为是自增长 ID */
+                accounts += Account(0, "username2", Option(hashed), new java.sql.Timestamp(new Date().getTime())),
+                accounts += Account(0, "username3", None, new java.sql.Timestamp(new Date().getTime()) )
             )
 
             /** 5-2) 执行由 users 导出的序列集的默认行为是 INSERT */
