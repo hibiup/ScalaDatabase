@@ -13,12 +13,12 @@ CREATE TABLE Accounts(
 
 CREATE TABLE Users(
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
+  account_id INT NOT NULL,
   first_name VARCHAR(255),
   last_name varchar(255),
-  foreign key (user_id) references Users(user_id)
+  foreign key (account_id) references Accounts(id)
 );
 
 -- Initial data set
 INSERT INTO ACCOUNTS(EMAIL, PASSWORD) VALUES('sample@gmail.com','password');
-INSERT INTO USERS(USER_ID, FIRST_NAME, LAST_NAME) VALUES(1, 'John','Smith');
+INSERT INTO USERS(ACCOUNT_ID, FIRST_NAME, LAST_NAME) VALUES(1, 'John','Smith');
