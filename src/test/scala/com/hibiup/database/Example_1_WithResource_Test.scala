@@ -20,7 +20,7 @@ class Example_1_WithResource_Test extends Init {
                     """SELECT *
                       |FROM "USERS" AS "u"
                       |JOIN "ACCOUNTS" AS "a"
-                      |ON "u"."ACCOUNT_ID" = "a"."ID" AND "a"."ID" = 1""".stripMargin)
+                      |ON "a"."USER_ID" = "u"."ID" AND "u"."ID" = 1""".stripMargin)
                 val resultSet = stmt.executeQuery
                 while (resultSet.next()) {
                     println(

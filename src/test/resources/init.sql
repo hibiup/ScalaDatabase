@@ -3,22 +3,23 @@ DROP TABLE IF EXISTS Users;
 DROP TABLE IF EXISTS Accounts;
 
 -- Creation
+CREATE TABLE Users(
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  first_name VARCHAR(255),
+  last_name varchar(255),
+  register_date TIMESTAMP AS CURRENT_TIMESTAMP
+);
+
 CREATE TABLE Accounts(
   id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
   email VARCHAR(255) NOT NULL,
   password VARCHAR(255),
   last_time TIMESTAMP AS CURRENT_TIMESTAMP,
-  UNIQUE KEY EMAIL(EMAIL)
-);
-
-CREATE TABLE Users(
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  account_id INT NOT NULL,
-  first_name VARCHAR(255),
-  last_name varchar(255),
-  foreign key (account_id) references Accounts(id)
+  UNIQUE KEY EMAIL(EMAIL),
+  foreign key (user_id) references Users(id)
 );
 
 -- Initial data set
-INSERT INTO ACCOUNTS(EMAIL, PASSWORD) VALUES('sample@gmail.com','password');
-INSERT INTO USERS(ACCOUNT_ID, FIRST_NAME, LAST_NAME) VALUES(1, 'John','Smith');
+INSERT INTO USERS(FIRST_NAME, LAST_NAME) VALUES('John','Smith');
+INSERT INTO ACCOUNTS(USER_ID, EMAIL, PASSWORD) VALUES(1, 'sample@gmail.com','$2a$10$ZHRv69WbouUkknTehO0dvOGPHeQ0nk0bmW.5qWiOhB3dc8gtw.UE6');
