@@ -54,90 +54,97 @@ class Example_2_Slick_Test extends Init{
 
     val timeout = Timeout(10 seconds)
 
-    "Slick" should "" in {
+    /** ***********************************
+      * 单条插入
+      * */
+    "Slick insert one with returnning id" should "" in {
         /**
-          * 4）用 Slick 提供的 jdbc Database object 来连接数据库. 参数是 Scala 的 Config
-          * */
-        withResource(Database.forConfig("database.connection")){ conn =>
-            /*************************************
-              * 5) 插入: INSERT(user) -> SELECT(user_id) -> INSERT account(user_id)
-              * */
+          * 用 Slick 提供的 jdbc Database object 来连接数据库. 参数是 Scala 的 Config
+          **/
+        withResource(Database.forConfig("database.connection")) { conn =>
+            /** 4-1) 定义插入后的返回动作 */
+            val insertUserQuery = users returning users
+                    .map(_.id) into((user, user_id) => user.copy(id=user_id))
 
-            /**
-              * 5-1) 定义 INSERT 的数据集(插入两条新用户)
-              * */
-            val add_user = DBIO.seq(   // 得到 DBIOAction
-                /** Account 的第一个参数只给 0，因为是自增长 ID。 Timestamp 设为 null，会取得缺省值。*/
-                users += User(0, Option("First_1"), Option("Last_1"), null),
-                users += User(0, Option("First_2"), None, null )
-            )
+            val insertAccountQuery = accounts returning accounts
+                    .map(_.id) into((account, account_id) => account.copy(id=account_id))
 
-            val createAccountByUser =
-                /**
-                  * 5-3) 执行 users 的结果集的默认行为是 SELECT * (注意！会返回全部用户，包括数据库中已存在的)
-                  * */
-                conn.run(users.result)
-                    /**
-                      * run 返回的是一个 Vector,包含了所有返回值, 然后再从 Vector 中 map 取出每个值
-                      * */
-                    .map(_.map {
-                    case User(user_id, first_name, last_name, register_date) =>
-                        println(s"($user_id):$first_name $last_name: register at: $register_date")
-                        /**
-                          * 5-4) 根据 SELECT 的结果，构建新的 INSERT
-                          *
-                          * 根据 Vector[ProfileAction] 获得下一步的 DBIOAction
-                          * */
-                        // 生成下一步用于 INSERT Account 的 Vector[ProfileAction]
-                        accounts += Account(
-                            0,
-                            user_id,
-                            s"first_$user_id.last_$user_id@test.com",
-                            Option(BCrypt.hashpw("password", BCrypt.gensalt())),
-                            null)
-                })
-                    // 根据 Vector[ProfileAction] 得到 DBIOAction
-                    .map(DBIO.sequence(_))
-                    /**
-                      * 5-5) 执行 INSERT Account(将 DBIOAction 直接 map 到 conn.run)
-                      * */
-                    .map(conn.run(_))
-                    .recover{
-                        case t => logger.error(t.getMessage, t)
-                    }
-
-            /** 等待 "插入 -> 查询 -> 插入 -> 查询" 结果 */
-            val result = Await.result(
-                for{
-                    /** 5-2) 执行由 users 导出的序列集的默认行为是 INSERT */
-                    _ <- conn.run(add_user)          // 插入新用户
-                    _ <- createAccountByUser         // 返回 user_id + 插入新 account
-                    r <- conn.run(accounts.result)   // 返回全部 account
-                }yield(r)
-                , timeout.value
-            )
-
-            /** 打印结果*/
-            result.foreach{
-                case Account(id, user_id, email, password, last_time) =>
-                    println(s"($id):$user_id $email/($password): last login time: $last_time")
+            /** 4-2) 定义插入函数 */
+            def add_user:User => DBIO[User] = user => insertUserQuery += user
+            def add_account:(User, String, String) => DBIO[Account] = (user, email, password) => {
+                insertAccountQuery += Account(
+                    0,
+                    user.id,
+                    email,
+                    Option(BCrypt.hashpw(password, BCrypt.gensalt())),
+                    null)
             }
 
+            /** 4-3）插入过程 */
+            val createAction = for{
+                user <- add_user(User(0, Option("First_1"), Option("Last_1"), null))
+                account <- add_account(user, s"first_${user.id}.last_${user.id}@test.com", "password")
+            }yield(account)
 
-            /***********************************
-              * 6) 查询
-              *
-              * 6-1) filter 相当于定义 Where, 返回 WrappingQuery
+            /** 检查 */
+            val new_account = Await.result(conn.run(createAction.transactionally), timeout.value)
+            println(new_account)
+        }
+    }
+
+
+    /** ***********************************
+      * 批量插入
+      * */
+    "Slick insert batch" should "" in {
+        withResource(Database.forConfig("database.connection")) { conn =>
+            /**
+              * 4-1) 定义 INSERT user 后返回 user id 回填到 user 中
+              **/
+            val insertUserQuery = users returning users
+                    .map(_.id) into ((user, user_id) => user.copy(id = user_id))
+
+            /** 4-2) 定义 INSERT 的数据集(插入多条新用户) */
+            val add_user = DBIO.seq( // 得到 DBIOAction
+                // 每次插入一条的语法（Account 的第一个参数只给 0，因为是自增长 ID。 Timestamp 设为 null，会取得缺省值。）
+                insertUserQuery += User(0, Option("First_1"), Option("Last_1"), null),
+                // 批量插入的语法
+                insertUserQuery ++= Seq(
+                    User(0, Option("First_2"), None, null),
+                    User(0, Option("First_3"), Option("Last_3"), null)
+                )
+            )
+
+            /** 4-3）执行批量插入 */
+            Await.result(conn.run(add_user), timeout.value)
+            /** TODO: 批量插入返回空值 Unit，因此要用其他途径插入 Account */
+
+            /** 检查 */
+            Await.result(conn.run(users.result).map(_.foreach {
+                case User(user_id, first_name, last_name, register_date) =>
+                    println(s"($user_id):$first_name $last_name: register at: $register_date")
+            }), timeout.value)
+        }
+    }
+
+
+    /** *********************************
+      * 查询
+      */
+    "Slick SELECT" should "" in {
+        withResource(Database.forConfig("database.connection")) { conn =>
+              /**
+              * 4-1) filter 相当于定义 Where, 返回 WrappingQuery
               * */
             //val hashed: String = BCrypt.hashpw("password", BCrypt.gensalt)
             val search = accounts.filter(_.email === "sample@gmail.com")   // 注意 “===” 而不是 "=="，类型也必须匹配
 
-            /** 6-2-1) WrappingQuery 的 result 表示结果集（全部返回的字段），它的 map 函数将结果映射到一个输出 */
+            /** 4-2-1) WrappingQuery 的 result 表示结果集（全部返回的字段），它的 map 函数将结果映射到一个输出 */
             val query1 = search.result.map(_.headOption.map(a => Account(a.id, a.user_id, a.email, Option(null), a.lasttime)))
             val account1 = conn.run(query1)                        // run 得到一个异步结果(Future)
             val result1 = Await.result(account1, Duration.Inf)     // 等待结束
 
-            /** 6-2-2) 如果在 result 之前先调用 Query 的 map，相当于定义 SELECT 的参数，选择输出到 result 的字段 */
+            /** 4-2-2) 如果在 result 之前先调用 Query 的 map，相当于定义 SELECT 的参数，选择输出到 result 的字段 */
             val query2 = search.map(a => (a.id, a.user_id, a.email, a.lasttime))
                     .result.map(_.headOption.map {              // 然后对输出的字段再定义 map, 相对于 5-1) 这样可以减小输出的流量
                 case (id, userId, email, lastLoginTime) => Account(id, userId, email, Option(null), lastLoginTime)
