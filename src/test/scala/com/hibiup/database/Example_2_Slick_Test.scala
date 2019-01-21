@@ -117,7 +117,7 @@ class Example_2_Slick_Test extends Init{
 
             /** 4-3）执行批量插入 */
             Await.result(conn.run(add_user), timeout.value)
-            /** TODO: 批量插入返回空值 Unit，因此要用其他途径插入 Account */
+            /** TODO: 批量插入返回空值 Unit，因此要用其他途径插入 Accounts */
 
             /** 检查 */
             Await.result(conn.run(users.result).map(_.foreach {
