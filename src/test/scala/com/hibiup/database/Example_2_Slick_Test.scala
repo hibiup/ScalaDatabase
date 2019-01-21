@@ -82,13 +82,13 @@ class Example_2_Slick_Test extends Init{
 
             /** 4-3）插入过程 */
             val createAction = for{
-                user <- add_user(User(0, Option("First_1"), Option("Last_1"), null))
+                user <- add_user(User(0, Option("First_2"), Option("Last_2"), null))
                 account <- add_account(user, s"first_${user.id}.last_${user.id}@test.com", "password")
-            }yield(account)
+            }yield(user, account)
 
             /** 检查 */
-            val new_account = Await.result(conn.run(createAction.transactionally), timeout.value)
-            println(new_account)
+            val (new_user, new_account) = Await.result(conn.run(createAction.transactionally), timeout.value)
+            println(new_user, new_account)
         }
     }
 
