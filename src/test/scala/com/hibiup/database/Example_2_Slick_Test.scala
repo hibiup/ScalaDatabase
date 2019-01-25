@@ -213,6 +213,7 @@ class Example_2_Slick_Test extends Init{
     "Execution plain SQL SELECT" should "" in {
         import slick.jdbc.GetResult
 
+        /** 为 “as” 定义隐式转换 */
         implicit val getUserResult = GetResult(r => User(r.<<, r.<<, r.<<, r.<<))
         implicit val getAccountResult = GetResult(r => Account(r.<<, r.<<, r.<<, r.<<, r.<<))
 
