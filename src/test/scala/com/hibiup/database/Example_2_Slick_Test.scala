@@ -139,7 +139,7 @@ class Example_2_Slick_Test extends Init{
             val search_condition = accounts.filter(_.user_id === 2L)   // 注意 “===” 而不是 "=="，类型也必须匹配
 
             /** 4-2-1) WrappingQuery 的 result 表示结果集（全部返回的字段），它的 map 函数将结果映射到一个输出 */
-            val query1 = search_condition.result.map(_.headOption.map(a =>
+            val query1 = search_condition.result.map(_.toList.map(a =>
                 Account(a.id, a.user_id, a.email, Option(null), a.lasttime)
             ))
             val account1 = conn.run(query1)                        // run 得到一个异步结果(Future)
@@ -147,7 +147,7 @@ class Example_2_Slick_Test extends Init{
 
             /** 4-2-2) 如果在 result 之前先调用 Query 的 map，相当于定义 SELECT 的参数，选择输出到 result 的字段 */
             val query2 = search_condition.map(a => (a.id, a.user_id, a.email, a.lasttime))
-                    .result.map(_.headOption.map {              // 然后对输出的字段再定义 map, 相对于 5-1) 这样可以减小输出的流量
+                    .result.map(_.toList.map {              // 然后对输出的字段再定义 map, 相对于 5-1) 这样可以减小输出的流量
                 case (id, userId, email, lastLoginTime) => Account(id, userId, email, Option(null), lastLoginTime)
             })
             val result2 = Await.result(conn.run(query2), Duration.Inf)
@@ -160,6 +160,9 @@ class Example_2_Slick_Test extends Init{
       * 关联查询
       */
     "Select record due to relative condition" should "" in {
+        val limit = 2   // 每次取得多少条记录
+        val page = 2    // 选取哪一页
+
         withResource(Database.forConfig("database.connection")) { conn =>
             /**
               * 4-1) 构造关系
@@ -178,16 +181,17 @@ class Example_2_Slick_Test extends Init{
             } yield(account, user)
 
             /** 映射结果 */
-            val result = query.result
+            val result = query.drop((page-1)*limit).take(limit).result   // 选取第2页，因为每页限制2条，所以等于选取了第 3 条 account 记录
             result.statements.foreach(println)  // 打印 SQL
 
-            val _query = result.map(_.headOption.map {
+            val _query = result.map(_.toList.map {
                 case (a, Some(u)) => Account(a.id, u.id, a.email, Option(null), a.lasttime)
             })
 
             /** 4-3) 执行 */
             val result1 = Await.result(conn.run(_query), timeout.value)
             println(result1)
+            assert(result1(0).email == "sample@dummy.com")
 
             /** 4-2-Alternative) 以上两步也可以写成: */
             val _query2 = joinTable.filter{
@@ -197,7 +201,7 @@ class Example_2_Slick_Test extends Init{
                                 x.last_name.isDefined &&
                                 x.last_name.getOrElse("") === "Smith"
                     }
-            }.result.map(_.headOption.map {
+            }.drop((page-1)*limit).take(limit).result.map(_.toList.map {
                 case (a, Some(u)) => Account(a.id, u.id, a.email, Option(null), a.lasttime)
             })
 
@@ -212,19 +216,20 @@ class Example_2_Slick_Test extends Init{
         implicit val getUserResult = GetResult(r => User(r.<<, r.<<, r.<<, r.<<))
         implicit val getAccountResult = GetResult(r => Account(r.<<, r.<<, r.<<, r.<<, r.<<))
 
+        val limit = 2   // 每次取得多少条记录
+        val page = 2    // 选取哪一页
         withResource(Database.forConfig("database.connection")) { conn =>
-            def query_users:Int => DBIO[Seq[Account]] = id =>
-                sql"""SELECT "A".*
+            val query_users:Int => DBIO[Seq[(Account, User)]] = id =>
+                sql"""SELECT *
                       | FROM "ACCOUNTS" as "A"
                       | LEFT OUTER JOIN "USERS" as "U"
-                      | ON "A"."USER_ID" = "U."ID"
+                      | ON "A"."USER_ID" = "U"."ID"
                       | WHERE "A"."USER_ID" = $id
-                """.stripMargin.as[Account]
+                      | LIMIT ${limit} offset ${(page-1)*limit}
+                """.stripMargin.as[(Account, User)]     // Limit 和 offset 用于 pagination
 
             val result = Await.result(conn.run(query_users(1)), timeout.value)
             println(result)
-
-
         }
     }
 }
