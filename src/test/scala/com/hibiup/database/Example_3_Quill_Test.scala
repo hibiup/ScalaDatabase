@@ -5,6 +5,10 @@ import io.getquill._
 import concurrent.duration._
 
 object Example_3_Quill_Test {
+    // pagination parameters
+    val page=2
+    val limit = 2
+
     /**
       * Quill 可能需要一些定制的 Encoder/Decoder 来做字段类型的编解码。
       *
@@ -110,6 +114,80 @@ class Example_3_Quill_Test extends Init {
             }
 
             println(ctx.run(users))
+        }
+    }
+
+    "Join SELECT" should "" in {
+        /**
+          * 可以有两种语法来实现关联查询：
+          */
+        withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
+            import ctx._
+
+              /**
+                * 1）Applicative Join:
+                * */
+            val joinQuery1 = quote {
+                query[Users].join(query[Accounts]).on(_.id == _.user_id)
+                        /**
+                          * 实现 pagination：
+                          *
+                          *   val page = 2
+                          *   val limit = 2
+                          *
+                          * 注意：不能直接使用（定义在 quota block 之外的）外部变量，例如定义在伴随 object 中。这是因为 quotation
+                          * 同时是编译时和运行时变量，在编译时 Quill 使用类型细化(type refinement)来将 quotation AST 转化成注释，
+                          * 而在运行时用 q.ast 来重新获取它，也就是说，Quill 在编译时就完成了SQL 语句的预编译以加快运行时的速度。因此
+                          * 在运行时就不能再动态植入变量了。
+                          *
+                          * 也由于这个原因导致 quota 的类型在编译时丢失了，因此要避免显式指定 quota 的返回值类型。
+                          *
+                          * 如果一定要实现“动态”变量的植入，参考：https://getquill.io/#dynamic-queries
+                          */
+                        .drop((2-1)*2).take(2)
+            }
+            val result1 = ctx.run(joinQuery1)
+            println(result1)
+
+            /**
+              * 2）Flat Join:
+              * */
+            val joinQuery2 = quote {
+                (for {
+                    u <- query[Users]
+                    a <- query[Accounts] if (u.id == a.user_id)
+                    // 或： a <- query[Accounts].join(_.user_id == u.id)
+                } yield (u, a))
+                        // pagination，不能使用外部变量，理由同上。
+                        .drop((2-1)*2).take(2)
+            }
+
+            val result2 = ctx.run(joinQuery2)
+            assert(result1 == result2)
+        }
+    }
+
+    "Dynamic query" should "" in {
+        /**
+          * 正如上例所示，由于编译时优化，导致 quotation 不能直接使用外部变量，为了解决这个问题 Quill 使用了另外一个类 DynamicQuery
+          * 来实现动态数据适配：
+          * */
+        withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
+            import ctx._
+
+            dynamicQuery[Users]
+            dynamicQuerySchema[Users]("users", alias(_.first_name, "fname"))
+
+            def users(f_name:String) = quote {
+                query[Users]
+            }.dynamic.filter{p =>
+                p.first_name == f_name
+            }
+
+            /*def users(f_name:String) = dynamicQuery[Users].filter{u =>
+                quote(u.first_name == f_name)
+            }*/
+            println(ctx.run(users("John")))
         }
     }
 }
