@@ -2,6 +2,7 @@ scalaVersion := "2.12.8"
 
 val derbyVersion = "10.14.2.0"
 val slickVersion = "3.2.3"
+val quillVersion = "3.0.0"
 
 lazy val ScalaDatabase = (project in file(".")).settings(
     name := "ScalaDatabase",
@@ -16,6 +17,9 @@ lazy val ScalaDatabase = (project in file(".")).settings(
         // Slick
         "com.typesafe.slick" %% "slick" % slickVersion,
         "com.typesafe.slick" %% "slick-hikaricp" % slickVersion,
-        "ch.qos.logback" % "logback-classic" % "1.2.3"
+        "ch.qos.logback" % "logback-classic" % "1.2.3",
+        // Quill
+        "io.getquill" %% "quill-sql" % quillVersion,
+        "io.getquill" %% "quill-jdbc" % quillVersion
     )
 )
