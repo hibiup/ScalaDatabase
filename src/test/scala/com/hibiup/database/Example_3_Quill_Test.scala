@@ -14,10 +14,10 @@ object Example_3_Quill_Test {
       *
       * 例如下面的 "SELECT Query Example 1" 中，Quill 缺省使用 Java.time.LocalDateTime 来解释数据库的 Timestamp 字段，因此如
       * 果对应的 case class 不是使用该类型，那么就需要定制隐式编解码器。*/
-    import java.sql.Timestamp
     // case class 的名称就对应 Table 名，参数对应字段名。
-    final case class Users(id: Long, first_name: String, last_name: Option[String], register_date: Timestamp)
-    final case class Accounts(id: Long, user_id: Long, email: String, password:Option[String], last_time:Timestamp)
+    import java.sql.Timestamp
+    final case class Users(id: Long, first_name: String, last_name: Option[String], register_date: Option[Timestamp] )
+    final case class Accounts(id: Long, user_id: Long, email: String, password:Option[String], last_time:Option[Timestamp] )
 
     import java.time.LocalDateTime
     implicit val timestampEncoder = MappedEncoding[LocalDateTime, Timestamp]{ Timestamp.valueOf }
@@ -208,6 +208,50 @@ class Example_3_Quill_Test extends Init {
                         quote(liftQuery(accountIds).contains(account.id))
                     }
             println(ctx.run(accountList(Seq(1,2,3))))
+        }
+    }
+
+    "Execute RAW SQL" should "" in {
+        /**
+          * Quill 可以直接执行 SQL
+          * */
+        withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
+            import ctx._
+
+            val account = quote{ user_id: Long =>
+                /** 由于静态优化的原因，不能插入非本地变量。但是可以使用本地动态变量（见下一个例子）*/
+                infix"""SELECT * FROM ACCOUNTS WHERE user_id=$user_id""".as[Query[Accounts]]
+            }
+
+            // 不能传入变量作为 id
+            println(s"Results: ${ctx.run(account(1L))}")
+        }
+    }
+
+    "INSERT single record" should "" in {
+        withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
+            import ctx._
+
+            /** 1) 定义一个隐式Meta方法反射 user id */
+            implicit val userIdInsertMeta = insertMeta[Users](_.id)
+            //implicit val userRegisterDateInsertMeta = insertMeta[Users](_.register_date)
+
+            val user = quote(query[Users].insert(lift(Users(
+                0, "Jane", Option(null), Option(null)
+            )))
+                    /** returning 返回 id */
+                    .returning(_.id))
+            val id = ctx.transaction {
+                ctx.run(user)   // returning id
+            }
+
+            println(s"Result: $id")
+            /**
+              * 根据返回的 id 检查记录
+              *
+              * infix 可以执行 raw sql 语句，可以使用 #$ 插入本地动态变量（不支持非本地动态变量）
+              * */
+            println(ctx.run(infix"SELECT * FROM USERS WHERE id=#$id".as[Query[Users]]))
         }
     }
 }
