@@ -169,25 +169,45 @@ class Example_3_Quill_Test extends Init {
 
     "Dynamic query" should "" in {
         /**
-          * 正如上例所示，由于编译时优化，导致 quotation 不能直接使用外部变量，为了解决这个问题 Quill 使用了另外一个类 DynamicQuery
-          * 来实现动态数据适配：
+          * 正如上例所示，由于编译时优化，导致 quotation 不能直接使用外部变量，为了解决这个问题 Quill 使用了另外一个函数 dynamicQuery
+          * 来实现动态数据适配. dynamicQuery 的 filter 是一个 Transformer, 接受一个 Quoted[T] 返回 Quoted[Boolean]
           * */
         withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
             import ctx._
 
-            dynamicQuery[Users]
-            dynamicQuerySchema[Users]("users", alias(_.first_name, "fname"))
+            // 获得动态参数
+            def users1(fname:Option[String]) = dynamicQuery[Users]
+                    /** filterOpt 将 Option 类型数据植入 quotation. */
+                    .filterOpt(fname){(u, fn) =>
+                        quote(u.first_name == fn)
+                    }
+            val result1 = ctx.run(users1(Option("John")))
+            println(result1)
 
-            def users(f_name:String) = quote {
+            // 等价于
+            def users2(fname:Option[String]) = quote {
                 query[Users]
-            }.dynamic.filter{p =>
+            }.dynamic.filterOpt(fname){(p,f_name) =>
                 p.first_name == f_name
             }
+            assert(ctx.run(users2(Option("John"))) === result1)
 
-            /*def users(f_name:String) = dynamicQuery[Users].filter{u =>
-                quote(u.first_name == f_name)
-            }*/
-            println(ctx.run(users("John")))
+            /** 带有 Opt 后缀的方法 which apply the transformation only if the option is defined, 例如:
+              * 动态分页 */
+            def accounts(userId:Option[Long],page:Option[Int], limit:Option[Int]) = dynamicQuery[Users]
+                    .join(query[Accounts]).on(_.id == _.user_id)         // Join
+                    .filterOpt(userId)((r, id) => r._1.id == id)         // Where
+                    .dropOpt(page).takeOpt(limit)                        // <- Opt 后缀方法
+            val p = ctx.run(accounts(Option(1L), Option((page-1)*limit),Option(limit)))
+            println(p)
+            assert(p.size === 1)
+
+            /** method with `If` suffix, for better chaining */
+            def accountList(accountIds: Seq[Long]) = dynamicQuery[Accounts]
+                    .filterIf(accountIds.nonEmpty) { account =>
+                        quote(liftQuery(accountIds).contains(account.id))
+                    }
+            println(ctx.run(accountList(Seq(1,2,3))))
         }
     }
 }
