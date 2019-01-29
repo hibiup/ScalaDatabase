@@ -194,7 +194,7 @@ class Example_3_Quill_Test extends Init {
 
             /** 带有 Opt 后缀的方法 which apply the transformation only if the option is defined, 例如:
               * 动态分页 */
-            def accounts(userId:Option[Long],page:Option[Int], limit:Option[Int]) = dynamicQuery[Users]
+            def accounts(userId:Option[Long], page:Option[Int], limit:Option[Int]) = dynamicQuery[Users]
                     .join(query[Accounts]).on(_.id == _.user_id)         // Join
                     .filterOpt(userId)((r, id) => r._1.id == id)         // Where
                     .dropOpt(page).takeOpt(limit)                        // <- Opt 后缀方法
