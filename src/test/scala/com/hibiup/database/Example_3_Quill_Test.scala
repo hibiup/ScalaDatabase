@@ -232,7 +232,7 @@ class Example_3_Quill_Test extends Init {
         withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
             import ctx._
 
-            /** 1) 定义一个隐式Meta方法反射 user id */
+            /** 1) 定义一个隐式来获取 users.id 的数据库 meta，以告知 Quill 这个 id 是否具有 auto 或 default 等属性。 */
             implicit val userIdInsertMeta = insertMeta[Users](_.id)
             //implicit val userRegisterDateInsertMeta = insertMeta[Users](_.register_date)
 
@@ -252,6 +252,33 @@ class Example_3_Quill_Test extends Init {
               * infix 可以执行 raw sql 语句，可以使用 #$ 插入本地动态变量（不支持非本地动态变量）
               * */
             println(ctx.run(infix"SELECT * FROM USERS WHERE id=#$id".as[Query[Users]]))
+        }
+    }
+
+    "Batch INSERT" should "" in {
+        withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
+            import ctx._
+
+            val insertQuery = quote {
+                /** 1) 将 query lift 成 monad */
+                liftQuery(
+                    List(
+                        Users(0, "Jane", Option(null), Option(null)),
+                        Users(0, "Jack", Option(null), Option(null)),
+                        Users(0, "Jessica", Option("Miller"), Option(null))
+                    )
+                )
+                        /** 2）逐条插入并返回 id */
+                        .foreach(u => query[Users].insert(u).returning(_.id))
+            }
+
+            /** 3）执行并打印出结果 */
+            ctx.transaction(
+                ctx.run(insertQuery)
+                        /** 将返回的 ID map 到新的查询 */
+                        .map(id => ctx.run(infix"SELECT * FROM USERS WHERE id=#$id".as[Query[Users]])
+                ).foreach(println)  // 打印出查询结果。
+            )
         }
     }
 }
