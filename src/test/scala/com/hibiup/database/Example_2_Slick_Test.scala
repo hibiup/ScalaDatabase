@@ -57,7 +57,7 @@ class Example_2_Slick_Test extends Init{
     /** ***********************************
       * 单条插入
       * */
-    "Slick insert one with returnning id" should "" in {
+    "Slick insert one with returning id" should "" in {
         /**
           * 用 Slick 提供的 jdbc Database object 来连接数据库. 参数是 Scala 的 Config
           **/

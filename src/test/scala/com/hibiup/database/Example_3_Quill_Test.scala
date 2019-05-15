@@ -255,6 +255,21 @@ class Example_3_Quill_Test extends Init {
         }
     }
 
+    "Quote combination for INSERT" should "" in {
+        withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
+            import ctx._
+
+            /** !!! 貌似 Quill API 暂时不支持在一个 transaction 中支持 insert from selection，所以无法
+              * map(_.id)，如果要实现这个功能，请考虑用 infix 直接执行 raw sql */
+            val user = quote(query[Users].filter(_.first_name == "John")/*.map(_.id)*/.size)
+
+            val id = ctx.run(quote(
+                query[Accounts].insert(Accounts(0, user, "New", Option(null), Option(null))).returning(_.id)
+            ))
+            println(ctx.run(infix"SELECT * FROM ACCOUNTS WHERE id=#$id".as[Query[Accounts]]))
+        }
+    }
+
     "Batch INSERT" should "" in {
         withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
             import ctx._
@@ -268,17 +283,42 @@ class Example_3_Quill_Test extends Init {
                         Users(0, "Jessica", Option("Miller"), Option(null))
                     )
                 )
-                        /** 2）逐条插入并返回 id */
+                        /** 2）逐条插入并返回 id.
+                          *
+                          * 注意 Quill liftQuery 的 foreach 不是 monad 的带有副作用的 foreach，而且它可以有返回值。*/
                         .foreach(u => query[Users].insert(u).returning(_.id))
             }
 
             /** 3）执行并打印出结果 */
             ctx.transaction(
                 ctx.run(insertQuery)
-                        /** 将返回的 ID map 到新的查询 */
+                        /** 将返回的 ID 然后 map 到新的查询(或插入) */
                         .map(id => ctx.run(infix"SELECT * FROM USERS WHERE id=#$id".as[Query[Users]])
                 ).foreach(println)  // 打印出查询结果。
             )
+        }
+    }
+
+    "UPDATE specific column by condition" should "" in {
+        import org.mindrot.jbcrypt.BCrypt
+        import java.sql.Timestamp
+        import java.util.Date
+        withResource(new H2JdbcContext(SnakeCase, "database.ctx")) { ctx =>
+            import ctx._
+
+            def updatePassword(id:Option[Long], new_pass:String) = {
+                val secret = BCrypt.hashpw(new_pass, BCrypt.gensalt())
+                dynamicQuery[Accounts].filterOpt(id)((a,id) => a.id == id).update(set(
+                    _.password, lift(Option(s"$secret"))
+                ))/*.update(lift(
+                    Accounts(1, 1,
+                        "john", Option(BCrypt.hashpw("new_pass", BCrypt.gensalt())),
+                        Option(new Timestamp((new Date).getTime)) )
+                ))*/
+            }
+
+            val id = 1L
+            ctx.run(updatePassword(Option(id), "new_pass"))
         }
     }
 }
